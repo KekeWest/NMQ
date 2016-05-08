@@ -17,6 +17,7 @@ dependencies {
     compile 'org.slf4j:slf4j-api:1.7.21'
     compile 'org.projectlombok:lombok:1.16.6'
     compile 'io.netty:netty-all:4.0.36.Final'
+    compile 'com.esotericsoftware:kryo:3.0.3'
 
     testCompile 'junit:junit:4.12'
 }

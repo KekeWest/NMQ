@@ -15,43 +15,58 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import lombok.Builder;
+import lombok.Getter;
 
 public class Channel {
 
     protected static final int DEFAULT_DATA_SIZE = 1048576;
 
-    private ChannelType channelType = null;
-    private String listenTopic = null;
-    private List<String> topics = null;
-    private String address = null;
-    private Integer port = null;
+    @Getter protected final ChannelType channelType;
+    @Getter protected final QueueManager queueManager;
+    @Getter protected final ChannelHandlerContextManager channelManager;
+    protected final String address;
+    protected final Integer port;
 
-    private io.netty.channel.Channel channel = null;
-    private EventLoopGroup acceptorGroup = null;
-    private EventLoopGroup workerGroup = null;
+    @Getter protected final boolean server;
+    protected io.netty.channel.Channel channel = null;
+    protected EventLoopGroup acceptorGroup = null;
+    protected EventLoopGroup workerGroup = null;
 
     /**
      * Create a new channel.
      *
      * @param channelType
-     *        the {@link ChannelType} of the channel
-     * @param listenTopic
-     *        the topic that the channel listens
+     *        the {@link ChannelType} of the channel.
      * @param topics
      *        the topic for clients when the channel is a server.
+     * @param capacity
+     *        the capacity of the queue.
      * @param address
      *        the address to be connected to the server when the channel is a client.
      * @param port
      *        the port which the channel uses.
      */
     @Builder
-    public Channel(ChannelType channelType, String listenTopic, List<String> topics,
+    public Channel(ChannelType channelType, List<String> topics, Integer capacity,
             String address, Integer port) {
         this.channelType = channelType;
-        this.listenTopic = listenTopic;
-        this.topics = topics;
+        this.queueManager = new QueueManager(topics, capacity);
+        this.channelManager = new ChannelHandlerContextManager(topics);
         this.address = address;
         this.port = port;
+
+        switch (this.channelType) {
+        case PUB:
+        case PUSH:
+            this.server = true;
+            break;
+        case SUB:
+        case PULL:
+            this.server = false;
+            break;
+        default:
+            throw new IllegalStateException("Unsupported channel type: " + this.channelType.name());
+        }
     }
 
     /**
@@ -61,21 +76,10 @@ public class Channel {
      *         if the current thread was interrupted.
      */
     public void start() throws InterruptedException {
-        if (this.channelType == null) {
-            throw new IllegalStateException("channel type has not been specified.");
-        }
-
-        switch (this.channelType) {
-        case PUB:
-        case PUSH:
+        if (this.isServer()) {
             bind();
-            break;
-        case SUB:
-        case PULL:
+        } else {
             connect();
-            break;
-        default:
-            throw new IllegalStateException("Unsupported channel type: " + this.channelType.name());
         }
     }
 
@@ -116,23 +120,11 @@ public class Channel {
     }
 
     protected Class<? extends ServerChannel> getServerChannelClass() {
-        switch (this.channelType) {
-        case PUB:
-        case PUSH:
-            return NioServerSocketChannel.class;
-        default:
-            throw new IllegalStateException("Unsupported socket type: " + this.channelType.name());
-        }
+        return NioServerSocketChannel.class;
     }
 
     protected Class<? extends io.netty.channel.Channel> getClientChannelClass() {
-        switch (this.channelType) {
-        case SUB:
-        case PULL:
-            return NioSocketChannel.class;
-        default:
-            throw new IllegalStateException("Unsupported socket type: " + this.channelType.name());
-        }
+        return NioSocketChannel.class;
     }
 
     protected ChannelInitializer<? extends io.netty.channel.Channel> getChannelInitializer() {

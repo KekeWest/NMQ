@@ -8,8 +8,8 @@ import lombok.Data;
 @Data
 public class Message implements Serializable {
 
-    private String topic;
+    protected String topic;
 
-    private ByteBuf bytes;
+    protected ByteBuf bytes;
 
 }
