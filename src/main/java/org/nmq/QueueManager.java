@@ -1,6 +1,6 @@
 package org.nmq;
 
-import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -10,11 +10,11 @@ public class QueueManager {
 
     protected final ConcurrentHashMap<String, LinkedBlockingQueue<ByteBuf>> queueMap = new ConcurrentHashMap<>();
 
-    public QueueManager(List<String> topics) {
+    public QueueManager(Set<String> topics) {
         this(topics, null);
     }
 
-    public QueueManager(List<String> topics, Integer maxLength) {
+    public QueueManager(Set<String> topics, Integer maxLength) {
         for (String topic : topics) {
             if (maxLength == null) {
                 this.queueMap.put(topic, new LinkedBlockingQueue<ByteBuf>());

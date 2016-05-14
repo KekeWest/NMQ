@@ -1,4 +1,6 @@
-package org.nmq;
+package org.nmq.channelhandler;
+
+import org.nmq.Message;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -21,9 +23,11 @@ public class MessageDecoder extends LengthFieldBasedFrameDecoder {
         int topicStrLength = frame.readInt();
         byte[] byteTopicName = new byte[topicStrLength];
         frame.readBytes(byteTopicName);
+        byte[] bytes = new byte[frame.readableBytes()];
+        frame.readBytes(bytes);
 
         msg.setTopic(new String(byteTopicName, "UTF-8"));
-        msg.setBytes(frame.readBytes(frame.readableBytes()));
+        msg.setBytes(bytes);
 
         return msg;
     }

@@ -1,4 +1,6 @@
-package org.nmq;
+package org.nmq.channelhandler;
+
+import org.nmq.Message;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;

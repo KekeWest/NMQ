@@ -1,7 +1,13 @@
 package org.nmq;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import org.nmq.channelhandler.ClientMessageHandler;
+import org.nmq.channelhandler.MessageDecoder;
+import org.nmq.channelhandler.MessageEncoder;
+import org.nmq.channelhandler.ServerMessageHandler;
 import org.nmq.enums.ChannelType;
 
 import io.netty.bootstrap.Bootstrap;
@@ -16,18 +22,24 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NonNull;
 
 public class Channel {
 
     protected static final int DEFAULT_DATA_SIZE = 1048576;
 
-    @Getter protected final ChannelType channelType;
-    @Getter protected final QueueManager queueManager;
-    @Getter protected final ChannelHandlerContextManager channelManager;
+    @Getter
+    protected final ChannelType channelType;
+
+    protected final Set<String> topics;
     protected final String address;
     protected final Integer port;
+    protected final Integer capacity;
 
-    @Getter protected final boolean server;
+    @Getter
+    protected final boolean server;
+    protected final QueueManager queueManager;
+    protected ClientChannelManager channelManager = null;
     protected io.netty.channel.Channel channel = null;
     protected EventLoopGroup acceptorGroup = null;
     protected EventLoopGroup workerGroup = null;
@@ -39,21 +51,26 @@ public class Channel {
      *        the {@link ChannelType} of the channel.
      * @param topics
      *        the topic for clients when the channel is a server.
-     * @param capacity
-     *        the capacity of the queue.
      * @param address
      *        the address to be connected to the server when the channel is a client.
      * @param port
      *        the port which the channel uses.
+     * @param capacity
+     *        the capacity of the queue.
      */
     @Builder
-    public Channel(ChannelType channelType, List<String> topics, Integer capacity,
-            String address, Integer port) {
+    public Channel(
+        @NonNull ChannelType channelType,
+        @NonNull List<String> topics,
+        String address,
+        Integer port,
+        Integer capacity) {
+
         this.channelType = channelType;
-        this.queueManager = new QueueManager(topics, capacity);
-        this.channelManager = new ChannelHandlerContextManager(topics);
+        this.topics = new HashSet<>(topics);
         this.address = address;
         this.port = port;
+        this.capacity = capacity;
 
         switch (this.channelType) {
         case PUB:
@@ -66,6 +83,32 @@ public class Channel {
             break;
         default:
             throw new IllegalStateException("Unsupported channel type: " + this.channelType.name());
+        }
+
+        checkConfig();
+
+        this.queueManager = new QueueManager(this.topics, this.capacity);
+
+        if (this.isServer()) {
+            this.channelManager = new ClientChannelManager(this.topics);
+        }
+    }
+
+    protected void checkConfig() {
+        if (topics.isEmpty()) {
+            throw new IllegalArgumentException("Please set one or more topics");
+        }
+        if (topics.contains("")) {
+            throw new IllegalArgumentException("Please do not set string of empty in a topic");
+        }
+        if (port < 0 || port > 0xFFFF) {
+            throw new IllegalArgumentException("port out of range:" + port);
+        }
+        if (capacity != null && capacity <= 0) {
+            throw new IllegalArgumentException("capacity is not greater than zero");
+        }
+        if (!this.isServer() && address == null) {
+            throw new IllegalArgumentException("address can't be null");
         }
     }
 
@@ -129,6 +172,7 @@ public class Channel {
 
     protected ChannelInitializer<? extends io.netty.channel.Channel> getChannelInitializer() {
         int dataSize = DEFAULT_DATA_SIZE;
+        Channel thisChannel = this;
         return new ChannelInitializer<SocketChannel>() {
             @Override
             public void initChannel(SocketChannel ch) throws Exception {
@@ -136,6 +180,12 @@ public class Channel {
                 pipeline.addLast(
                     new MessageEncoder(),
                     new MessageDecoder(dataSize));
+
+                if (thisChannel.isServer()) {
+                    pipeline.addLast(new ServerMessageHandler(thisChannel, thisChannel.channelManager));
+                } else {
+                    pipeline.addLast(new ClientMessageHandler(thisChannel, thisChannel.topics));
+                }
             }
         };
     }
