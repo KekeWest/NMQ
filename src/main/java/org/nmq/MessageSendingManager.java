@@ -24,6 +24,10 @@ public class MessageSendingManager {
     }
 
     public void start() {
+        if (isStarted()) {
+            throw new IllegalStateException("MessageSendingManager has already started");
+        }
+
         switch (channelType) {
         case PUB:
             startPublishSender();
@@ -41,6 +45,7 @@ public class MessageSendingManager {
         for (String topic : queueManager.getTopics()) {
             PublishSender sender = new PublishSender(topic, channelManager, queueManager);
             Thread senderThread = new Thread(sender);
+            senderThread.setName("PublishSender topic: " + topic);
             senderThread.start();
         }
     }

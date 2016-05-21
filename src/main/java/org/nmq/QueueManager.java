@@ -30,21 +30,36 @@ public class QueueManager {
     }
 
     public boolean offer(String topic, byte[] bytes) {
-        boolean result = queueMap.get(topic).offer(new Message(topic, bytes));
-        return result;
+        return offer(topic, new Message(topic, bytes));
+    }
+
+    public boolean offer(String topic, Message msg) {
+        return queueMap.get(topic).offer(msg);
     }
 
     public boolean offerAll(byte[] bytes) {
+        return offerAll(new Message(null, bytes));
+    }
+
+    private boolean offerAll(Message msg) {
         boolean result = true;
 
         for (String topic : getTopics()) {
-            boolean r = offer(topic, bytes);
+            boolean r = offer(topic, msg);
             if (!r) {
                 result = false;
             }
         }
 
         return result;
+    }
+
+    public byte[] poll(String topic) {
+        Message msg = queueMap.get(topic).poll();
+        if (msg == null) {
+            return null;
+        }
+        return msg.getBytes();
     }
 
     public Message take(String topic) throws InterruptedException {

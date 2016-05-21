@@ -140,6 +140,10 @@ public class Channel {
      *         if the current thread was interrupted.
      */
     public void start() throws InterruptedException {
+        if (isStarted()) {
+            throw new IllegalStateException("Channel has already started");
+        }
+
         if (this.isServer()) {
             messageSendingManager.start();
             bind();
@@ -168,6 +172,14 @@ public class Channel {
         }
         workerGroup.shutdownGracefully();
         started = false;
+    }
+
+    public boolean send(String topic, byte[] bytes) {
+        return queueManager.offer(topic, bytes);
+    }
+
+    public byte[] receive(String topic) {
+        return queueManager.poll(topic);
     }
 
     private void bind() throws InterruptedException {
@@ -212,7 +224,7 @@ public class Channel {
                 if (isServer()) {
                     pipeline.addLast(new ServerMessageHandler(channelType, channelManager));
                 } else {
-                    pipeline.addLast(new ClientMessageHandler(channelType, topics));
+                    pipeline.addLast(new ClientMessageHandler(channelType, topics, queueManager));
                 }
             }
         };
