@@ -1,7 +1,6 @@
 package org.nmq;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import org.nmq.channelhandler.ClientMessageHandler;
@@ -23,26 +22,31 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class Channel {
 
-    protected static final int DEFAULT_DATA_SIZE = 1048576;
+    private static final int DEFAULT_DATA_SIZE = 1048576;
 
     @Getter
-    protected final ChannelType channelType;
+    private final ChannelType channelType;
 
-    protected final Set<String> topics;
-    protected final String address;
-    protected final Integer port;
-    protected final Integer capacity;
+    private final Set<String> topics;
+    private final String address;
+    private final Integer port;
+    private final Integer capacity;
 
     @Getter
-    protected final boolean server;
-    protected final QueueManager queueManager;
-    protected ClientChannelManager channelManager = null;
-    protected io.netty.channel.Channel channel = null;
-    protected EventLoopGroup acceptorGroup = null;
-    protected EventLoopGroup workerGroup = null;
+    private final boolean server;
+    private final QueueManager queueManager;
+    private final ClientChannelManager channelManager;
+    private final MessageSendingManager messageSendingManager;
+    @Getter
+    private boolean started = false;
+    private io.netty.channel.Channel channel = null;
+    private EventLoopGroup acceptorGroup = null;
+    private EventLoopGroup workerGroup = null;
 
     /**
      * Create a new channel.
@@ -61,7 +65,7 @@ public class Channel {
     @Builder
     public Channel(
         @NonNull ChannelType channelType,
-        @NonNull List<String> topics,
+        @NonNull Set<String> topics,
         String address,
         Integer port,
         Integer capacity) {
@@ -91,10 +95,15 @@ public class Channel {
 
         if (this.isServer()) {
             this.channelManager = new ClientChannelManager(this.topics);
+            this.messageSendingManager =
+                new MessageSendingManager(channelType, channelManager, queueManager);
+        } else {
+            this.channelManager = null;
+            this.messageSendingManager = null;
         }
     }
 
-    protected void checkConfig() {
+    private void checkConfig() {
         if (topics.isEmpty()) {
             throw new IllegalArgumentException("Please set one or more topics");
         }
@@ -112,6 +121,18 @@ public class Channel {
         }
     }
 
+    public Set<String> getTopics() {
+        return new HashSet<>(topics);
+    }
+
+    public int getConnectionCount(String topic) {
+        return channelManager.getConnectionCount(topic);
+    }
+
+    public int getAllConnectionCount() {
+        return channelManager.getAllConnectionCount();
+    }
+
     /**
      * start the channel.
      *
@@ -120,59 +141,66 @@ public class Channel {
      */
     public void start() throws InterruptedException {
         if (this.isServer()) {
+            messageSendingManager.start();
             bind();
         } else {
             connect();
         }
+        started = true;
     }
 
     /**
      * shutdown the channel.
+     * @throws InterruptedException
      */
-    public void shutdown() {
-        if (this.channel == null) {
+    public void shutdown(boolean now) throws InterruptedException {
+        if (!isStarted()) {
             throw new IllegalStateException("Channel does not start");
         }
 
-        this.channel.close();
-        if (this.acceptorGroup != null) {
-            this.acceptorGroup.shutdownGracefully();
+        if (isServer()) {
+            messageSendingManager.shutdown(now);
         }
-        this.workerGroup.shutdownGracefully();
+
+        channel.close();
+        if (acceptorGroup != null) {
+            acceptorGroup.shutdownGracefully();
+        }
+        workerGroup.shutdownGracefully();
+        started = false;
     }
 
-    protected void bind() throws InterruptedException {
-        this.acceptorGroup = new NioEventLoopGroup(1);
-        this.workerGroup = new NioEventLoopGroup();
+    private void bind() throws InterruptedException {
+        acceptorGroup = new NioEventLoopGroup(1);
+        workerGroup = new NioEventLoopGroup();
         ServerBootstrap serverBootstrap = new ServerBootstrap();
-        serverBootstrap.group(this.acceptorGroup, this.workerGroup);
-        serverBootstrap.localAddress(this.port);
+        serverBootstrap.group(acceptorGroup, workerGroup);
+        serverBootstrap.localAddress(port);
         serverBootstrap.channel(getServerChannelClass());
         serverBootstrap.childHandler(getChannelInitializer());
-        this.channel = serverBootstrap.bind().sync().channel();
+        channel = serverBootstrap.bind().sync().channel();
     }
 
-    protected void connect() throws InterruptedException {
-        this.workerGroup = new NioEventLoopGroup();
+    private void connect() throws InterruptedException {
+        workerGroup = new NioEventLoopGroup();
         Bootstrap clientBootstrap = new Bootstrap();
-        clientBootstrap.group(this.workerGroup);
-        clientBootstrap.remoteAddress(this.address, this.port);
+        clientBootstrap.group(workerGroup);
+        clientBootstrap.remoteAddress(address, port);
         clientBootstrap.channel(getClientChannelClass());
         clientBootstrap.handler(getChannelInitializer());
-        this.channel = clientBootstrap.connect().sync().channel();
+        channel = clientBootstrap.connect().sync().channel();
     }
 
-    protected Class<? extends ServerChannel> getServerChannelClass() {
+    private Class<? extends ServerChannel> getServerChannelClass() {
         return NioServerSocketChannel.class;
     }
 
-    protected Class<? extends io.netty.channel.Channel> getClientChannelClass() {
+    private Class<? extends io.netty.channel.Channel> getClientChannelClass() {
         return NioSocketChannel.class;
     }
 
-    protected ChannelInitializer<? extends io.netty.channel.Channel> getChannelInitializer() {
+    private ChannelInitializer<? extends io.netty.channel.Channel> getChannelInitializer() {
         int dataSize = DEFAULT_DATA_SIZE;
-        Channel thisChannel = this;
         return new ChannelInitializer<SocketChannel>() {
             @Override
             public void initChannel(SocketChannel ch) throws Exception {
@@ -181,10 +209,10 @@ public class Channel {
                     new MessageEncoder(),
                     new MessageDecoder(dataSize));
 
-                if (thisChannel.isServer()) {
-                    pipeline.addLast(new ServerMessageHandler(thisChannel, thisChannel.channelManager));
+                if (isServer()) {
+                    pipeline.addLast(new ServerMessageHandler(channelType, channelManager));
                 } else {
-                    pipeline.addLast(new ClientMessageHandler(thisChannel, thisChannel.topics));
+                    pipeline.addLast(new ClientMessageHandler(channelType, topics));
                 }
             }
         };

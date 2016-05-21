@@ -4,7 +4,9 @@ import io.netty.channel.Channel;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.util.concurrent.EventExecutor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class ClientChannelGroup extends DefaultChannelGroup {
 
     public ClientChannelGroup(String name, EventExecutor executor) {

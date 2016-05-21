@@ -3,8 +3,8 @@ package org.nmq.channelhandler;
 import java.io.ByteArrayOutputStream;
 import java.util.Set;
 
-import org.nmq.Channel;
 import org.nmq.Message;
+import org.nmq.enums.ChannelType;
 import org.nmq.request.RegistrationRequest;
 
 import com.esotericsoftware.kryo.Kryo;
@@ -17,21 +17,20 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientMessageHandler extends SimpleChannelInboundHandler<Message> {
 
-    protected final Kryo kryo = new Kryo();
+    private final Kryo kryo = new Kryo();
+    private final ChannelType channelType;
+    private final Set<String> topics;
 
-    protected final Channel channel;
-    protected final Set<String> topics;
-
-    public ClientMessageHandler(Channel channel, Set<String> topics) {
+    public ClientMessageHandler(ChannelType channelType, Set<String> topics) {
         super();
-        this.channel = channel;
+        this.channelType = channelType;
         this.topics = topics;
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         Output output = new Output(new ByteArrayOutputStream());
-        RegistrationRequest request = new RegistrationRequest(topics);
+        RegistrationRequest request = new RegistrationRequest(channelType, topics);
         kryo.writeClassAndObject(output, request);
         Message msg = new Message("", output.toBytes());
         output.close();

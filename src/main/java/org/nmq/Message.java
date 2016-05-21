@@ -11,8 +11,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Message implements Serializable {
 
-    protected String topic;
+    private String topic;
 
-    protected byte[] bytes;
+    private byte[] bytes;
 
 }

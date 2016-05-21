@@ -1,8 +1,10 @@
 package org.nmq.channelhandler;
 
-import org.nmq.Channel;
+import java.util.Set;
+
 import org.nmq.ClientChannelManager;
 import org.nmq.Message;
+import org.nmq.enums.ChannelType;
 import org.nmq.request.RegistrationRequest;
 
 import com.esotericsoftware.kryo.Kryo;
@@ -15,14 +17,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ServerMessageHandler extends SimpleChannelInboundHandler<Message> {
 
-    protected final Kryo kryo = new Kryo();
+    private final Kryo kryo = new Kryo();
+    private final ChannelType channelType;
+    private final ClientChannelManager channelManager;
 
-    protected final Channel channel;
-    protected final ClientChannelManager channelManager;
-
-    public ServerMessageHandler(Channel channel, ClientChannelManager channelManager) {
+    public ServerMessageHandler(ChannelType channelType, ClientChannelManager channelManager) {
         super();
-        this.channel = channel;
+        this.channelType = channelType;
         this.channelManager = channelManager;
     }
 
@@ -33,7 +34,10 @@ public class ServerMessageHandler extends SimpleChannelInboundHandler<Message> {
         input.close();
 
         if (request instanceof RegistrationRequest) {
-            addChannel(ctx.channel(), (RegistrationRequest) request);
+            boolean registered = register(ctx.channel(), (RegistrationRequest) request);
+            if (!registered) {
+                ctx.close();
+            }
         }
     }
 
@@ -43,12 +47,30 @@ public class ServerMessageHandler extends SimpleChannelInboundHandler<Message> {
         ctx.close();
     }
 
-    protected void addChannel(io.netty.channel.Channel channel, RegistrationRequest request) {
-        for (String topic : request.getTopics()) {
-            try {
-                channelManager.addChannel(topic, channel);
-            } catch (Exception e) {
+    private boolean register(io.netty.channel.Channel channel, RegistrationRequest request) {
+        switch (channelType) {
+        case PUB:
+            if (request.getChannelType() != ChannelType.SUB) {
+                return false;
             }
+            break;
+        case PUSH:
+            if (request.getChannelType() != ChannelType.PULL) {
+                return false;
+            }
+            break;
+        default:
+            throw new IllegalStateException("Unsupported channel type: " + this.channelType.name());
+        }
+
+        addChannel(channel, request.getTopics());
+
+        return true;
+    }
+
+    private void addChannel(io.netty.channel.Channel channel, Set<String> topics) {
+        for (String topic : topics) {
+            channelManager.addChannel(topic, channel);
         }
     }
 
