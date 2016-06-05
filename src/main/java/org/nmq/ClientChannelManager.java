@@ -25,8 +25,8 @@ public class ClientChannelManager {
         return channelMap.get(topic).add(channel);
     }
 
-    public ChannelGroupFuture writeAndFlush(String topic, Message msg) {
-        return channelMap.get(topic).writeAndFlush(msg);
+    public ChannelGroupFuture write(String topic, Message msg) {
+        return channelMap.get(topic).write(msg);
     }
 
     public Set<String> getTopics() {

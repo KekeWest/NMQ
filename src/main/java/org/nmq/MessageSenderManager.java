@@ -1,5 +1,8 @@
 package org.nmq;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.nmq.enums.ChannelType;
 import org.nmq.sender.PublishSender;
 
@@ -7,16 +10,17 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class MessageSendingManager {
+public class MessageSenderManager {
 
     private final ChannelType channelType;
     private final ClientChannelManager channelManager;
     private final QueueManager queueManager;
+    private final List<Thread> senderThreads = new ArrayList<>();
 
     @Getter
     private boolean started = false;
 
-    public MessageSendingManager(ChannelType channelType,
+    public MessageSenderManager(ChannelType channelType,
         ClientChannelManager channelManager, QueueManager queueManager) {
         this.channelType = channelType;
         this.channelManager = channelManager;
@@ -25,7 +29,7 @@ public class MessageSendingManager {
 
     public void start() {
         if (isStarted()) {
-            throw new IllegalStateException("MessageSendingManager has already started");
+            throw new IllegalStateException("MessageSenderManager has already started");
         }
 
         switch (channelType) {
@@ -47,18 +51,24 @@ public class MessageSendingManager {
             Thread senderThread = new Thread(sender);
             senderThread.setName("PublishSender topic: " + topic);
             senderThread.start();
+            senderThreads.add(senderThread);
         }
     }
 
     public void shutdown(boolean now) throws InterruptedException {
         if (!isStarted()) {
-            throw new IllegalStateException("MessageSendingManager does not start");
+            throw new IllegalStateException("MessageSenderManager does not start");
         }
 
         if (now) {
             queueManager.clearAll();
         }
-        queueManager.offerAll(null);
+
+        queueManager.setShutdownMessage();
+        for (Thread senderThread : senderThreads) {
+            senderThread.join();
+        }
+        senderThreads.clear();
 
         started = false;
     }

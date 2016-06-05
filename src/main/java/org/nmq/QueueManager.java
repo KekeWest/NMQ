@@ -30,22 +30,18 @@ public class QueueManager {
     }
 
     public boolean offer(String topic, byte[] bytes) {
-        return offer(topic, new Message(topic, bytes));
+        return offer(new Message(topic, bytes));
     }
 
-    public boolean offer(String topic, Message msg) {
-        return queueMap.get(topic).offer(msg);
+    public boolean offer(Message msg) {
+        return queueMap.get(msg.getTopic()).offer(msg);
     }
 
-    public boolean offerAll(byte[] bytes) {
-        return offerAll(new Message(null, bytes));
-    }
-
-    private boolean offerAll(Message msg) {
+    public boolean setShutdownMessage() {
         boolean result = true;
 
         for (String topic : getTopics()) {
-            boolean r = offer(topic, msg);
+            boolean r = offer(topic, null);
             if (!r) {
                 result = false;
             }

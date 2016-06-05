@@ -1,6 +1,8 @@
 package org.nmq;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import org.nmq.channelhandler.ClientMessageHandler;
@@ -8,6 +10,7 @@ import org.nmq.channelhandler.MessageDecoder;
 import org.nmq.channelhandler.MessageEncoder;
 import org.nmq.channelhandler.ServerMessageHandler;
 import org.nmq.enums.ChannelType;
+import org.nmq.receiver.MessageReceiver;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
@@ -39,11 +42,15 @@ public class Channel {
 
     @Getter
     private final boolean server;
-    private final QueueManager queueManager;
-    private final ClientChannelManager channelManager;
-    private final MessageSendingManager messageSendingManager;
     @Getter
     private boolean started = false;
+
+    private final QueueManager queueManager;
+    private final ClientChannelManager channelManager;
+    private final MessageSenderManager messageSenderManager;
+    private final MessageReceiverManager messageReceiverManager;
+    private final Map<String, MessageReceiver> receivers = new HashMap<>();
+
     private io.netty.channel.Channel channel = null;
     private EventLoopGroup acceptorGroup = null;
     private EventLoopGroup workerGroup = null;
@@ -95,11 +102,12 @@ public class Channel {
 
         if (this.isServer()) {
             this.channelManager = new ClientChannelManager(this.topics);
-            this.messageSendingManager =
-                new MessageSendingManager(channelType, channelManager, queueManager);
+            this.messageSenderManager = new MessageSenderManager(channelType, channelManager, queueManager);
+            this.messageReceiverManager = null;
         } else {
             this.channelManager = null;
-            this.messageSendingManager = null;
+            this.messageSenderManager = null;
+            this.messageReceiverManager = new MessageReceiverManager(this.receivers, this.queueManager);
         }
     }
 
@@ -125,6 +133,14 @@ public class Channel {
         return new HashSet<>(topics);
     }
 
+    public boolean setReceiver(String topic, MessageReceiver receiver) {
+        if (!topics.contains(topic)) {
+            return false;
+        }
+        receivers.put(topic, receiver);
+        return true;
+    }
+
     public int getConnectionCount(String topic) {
         return channelManager.getConnectionCount(topic);
     }
@@ -145,9 +161,10 @@ public class Channel {
         }
 
         if (this.isServer()) {
-            messageSendingManager.start();
+            messageSenderManager.start();
             bind();
         } else {
+            messageReceiverManager.start();
             connect();
         }
         started = true;
@@ -155,6 +172,7 @@ public class Channel {
 
     /**
      * shutdown the channel.
+     *
      * @throws InterruptedException
      */
     public void shutdown(boolean now) throws InterruptedException {
@@ -163,7 +181,9 @@ public class Channel {
         }
 
         if (isServer()) {
-            messageSendingManager.shutdown(now);
+            messageSenderManager.shutdown(now);
+        } else {
+            messageReceiverManager.shutdown(now);
         }
 
         channel.close();

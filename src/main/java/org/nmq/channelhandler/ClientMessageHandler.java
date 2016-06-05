@@ -42,7 +42,7 @@ public class ClientMessageHandler extends SimpleChannelInboundHandler<Message> {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Message msg) throws Exception {
-        queueManager.offer(msg.getTopic(), msg);
+        queueManager.offer(msg);
     }
 
     @Override

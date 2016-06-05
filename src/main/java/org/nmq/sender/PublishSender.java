@@ -4,14 +4,16 @@ import org.nmq.ClientChannelManager;
 import org.nmq.Message;
 import org.nmq.QueueManager;
 
+import io.netty.channel.group.ChannelGroupFuture;
+
 public class PublishSender extends MessageSender {
 
     public PublishSender(String topic, ClientChannelManager channelManager, QueueManager queueManager) {
         super(topic, channelManager, queueManager);
     }
 
-    protected void send(Message msg) {
-        channelManager.writeAndFlush(topic, msg);
+    protected ChannelGroupFuture send(Message msg) {
+        return channelManager.write(topic, msg);
     }
 
 }
