@@ -4,16 +4,20 @@ import org.nmq.ClientChannelManager;
 import org.nmq.Message;
 import org.nmq.QueueManager;
 
-import io.netty.channel.group.ChannelGroupFuture;
-
+/**
+ * TODO 速度向上のため、flushを非同期で行うようにするwriteAndAsyncFlush()メソッドをClientChannelGroupに実装する
+ * TODO ChannelManagerから取得したClientChannelGroupを使ってwriteAndAsyncFlush()する方式に変える(そういう実装にしないと
+ *      後でPushPullを実装するときに面倒なので)
+ * @author keke
+ *
+ */
 public class PublishSender extends MessageSender {
 
     public PublishSender(String topic, ClientChannelManager channelManager, QueueManager queueManager) {
         super(topic, channelManager, queueManager);
     }
 
-    protected ChannelGroupFuture send(Message msg) {
-        return channelManager.write(topic, msg);
+    protected void send(Message msg) {
     }
 
 }

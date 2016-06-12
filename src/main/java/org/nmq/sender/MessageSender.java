@@ -4,8 +4,6 @@ import org.nmq.ClientChannelManager;
 import org.nmq.Message;
 import org.nmq.QueueManager;
 
-import io.netty.channel.group.ChannelGroupFuture;
-
 public abstract class MessageSender implements Runnable {
 
     protected final String topic;
@@ -33,6 +31,6 @@ public abstract class MessageSender implements Runnable {
         }
     }
 
-    protected abstract ChannelGroupFuture send(Message msg);
+    protected abstract void send(Message msg);
 
 }
