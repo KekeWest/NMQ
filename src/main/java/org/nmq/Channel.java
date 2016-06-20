@@ -46,7 +46,7 @@ public class Channel {
     private boolean started = false;
 
     private final QueueManager queueManager;
-    private final ClientChannelManager channelManager;
+    private final ClientHandlerManager handlerManager;
     private final MessageSenderManager messageSenderManager;
     private final MessageReceiverManager messageReceiverManager;
     private final Map<String, MessageReceiver> receivers = new HashMap<>();
@@ -101,11 +101,11 @@ public class Channel {
         this.queueManager = new QueueManager(this.topics, this.capacity);
 
         if (this.isServer()) {
-            this.channelManager = new ClientChannelManager(this.topics);
-            this.messageSenderManager = new MessageSenderManager(channelType, channelManager, queueManager);
+            this.handlerManager = new ClientHandlerManager(this.topics);
+            this.messageSenderManager = new MessageSenderManager(channelType, handlerManager, queueManager);
             this.messageReceiverManager = null;
         } else {
-            this.channelManager = null;
+            this.handlerManager = null;
             this.messageSenderManager = null;
             this.messageReceiverManager = new MessageReceiverManager(this.receivers, this.queueManager);
         }
@@ -142,11 +142,11 @@ public class Channel {
     }
 
     public int getConnectionCount(String topic) {
-        return channelManager.getConnectionCount(topic);
+        return handlerManager.getConnectionCount(topic);
     }
 
     public int getAllConnectionCount() {
-        return channelManager.getAllConnectionCount();
+        return handlerManager.getAllConnectionCount();
     }
 
     /**
@@ -242,9 +242,9 @@ public class Channel {
                     new MessageDecoder(dataSize));
 
                 if (isServer()) {
-                    pipeline.addLast(new ServerMessageHandler(channelType, channelManager));
+                    pipeline.addLast(new ClientMessageHandler(channelType, ch, handlerManager));
                 } else {
-                    pipeline.addLast(new ClientMessageHandler(channelType, topics, queueManager));
+                    pipeline.addLast(new ServerMessageHandler(channelType, topics, queueManager));
                 }
             }
         };

@@ -1,14 +1,15 @@
 package org.nmq.channelhandler;
 
+import java.io.ByteArrayOutputStream;
 import java.util.Set;
 
-import org.nmq.ClientChannelManager;
 import org.nmq.Message;
+import org.nmq.QueueManager;
 import org.nmq.enums.ChannelType;
 import org.nmq.request.RegistrationRequest;
 
 import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -19,59 +20,35 @@ public class ServerMessageHandler extends SimpleChannelInboundHandler<Message> {
 
     private final Kryo kryo = new Kryo();
     private final ChannelType channelType;
-    private final ClientChannelManager channelManager;
+    private final Set<String> topics;
+    private final QueueManager queueManager;
 
-    public ServerMessageHandler(ChannelType channelType, ClientChannelManager channelManager) {
+    public ServerMessageHandler(ChannelType channelType, Set<String> topics, QueueManager queueManager) {
         super();
         this.channelType = channelType;
-        this.channelManager = channelManager;
+        this.topics = topics;
+        this.queueManager = queueManager;
+    }
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        Output output = new Output(new ByteArrayOutputStream());
+        RegistrationRequest request = new RegistrationRequest(channelType, topics);
+        kryo.writeClassAndObject(output, request);
+        Message msg = new Message("", output.toBytes());
+        output.close();
+        ctx.writeAndFlush(msg);
     }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Message msg) throws Exception {
-        Input input = new Input(msg.getBytes());
-        Object request = kryo.readClassAndObject(input);
-        input.close();
-
-        if (request instanceof RegistrationRequest) {
-            boolean registered = register(ctx.channel(), (RegistrationRequest) request);
-            if (!registered) {
-                ctx.close();
-            }
-        }
+        queueManager.offer(msg);
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         super.exceptionCaught(ctx, cause);
         ctx.close();
-    }
-
-    private boolean register(io.netty.channel.Channel channel, RegistrationRequest request) {
-        switch (channelType) {
-        case PUB:
-            if (request.getChannelType() != ChannelType.SUB) {
-                return false;
-            }
-            break;
-        case PUSH:
-            if (request.getChannelType() != ChannelType.PULL) {
-                return false;
-            }
-            break;
-        default:
-            throw new IllegalStateException("Unsupported channel type: " + this.channelType.name());
-        }
-
-        addChannel(channel, request.getTopics());
-
-        return true;
-    }
-
-    private void addChannel(io.netty.channel.Channel channel, Set<String> topics) {
-        for (String topic : topics) {
-            channelManager.addChannel(topic, channel);
-        }
     }
 
 }

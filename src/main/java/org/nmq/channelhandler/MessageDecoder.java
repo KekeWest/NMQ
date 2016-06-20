@@ -29,6 +29,8 @@ public class MessageDecoder extends LengthFieldBasedFrameDecoder {
         msg.setTopic(new String(byteTopicName, "UTF-8"));
         msg.setBytes(bytes);
 
+        in.release();
+
         return msg;
     }
 

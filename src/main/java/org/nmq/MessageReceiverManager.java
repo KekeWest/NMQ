@@ -33,8 +33,8 @@ public class MessageReceiverManager {
         for (Entry<String, MessageReceiver> entry : receivers.entrySet()) {
             MessageReceiver receiver = entry.getValue();
             String topic = entry.getKey();
-            receiver.setTopic(topic);
-            receiver.setQueueManager(queueManager);
+            receiver.setQueue(queueManager.getQueue(topic));
+
             Thread receiverThread = new Thread(receiver);
             receiverThread.setName(receiver.getClass().getSimpleName() + " topic: " + topic);
             receiverThread.start();

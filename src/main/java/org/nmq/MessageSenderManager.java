@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 public class MessageSenderManager {
 
     private final ChannelType channelType;
-    private final ClientChannelManager channelManager;
+    private final ClientHandlerManager handlerManager;
     private final QueueManager queueManager;
     private final List<Thread> senderThreads = new ArrayList<>();
 
@@ -21,9 +21,9 @@ public class MessageSenderManager {
     private boolean started = false;
 
     public MessageSenderManager(ChannelType channelType,
-        ClientChannelManager channelManager, QueueManager queueManager) {
+        ClientHandlerManager handlerManager, QueueManager queueManager) {
         this.channelType = channelType;
-        this.channelManager = channelManager;
+        this.handlerManager = handlerManager;
         this.queueManager = queueManager;
     }
 
@@ -47,7 +47,9 @@ public class MessageSenderManager {
 
     private void startPublishSender() {
         for (String topic : queueManager.getTopics()) {
-            PublishSender sender = new PublishSender(topic, channelManager, queueManager);
+            PublishSender sender = new PublishSender(handlerManager.getHandlerGroup(topic),
+                queueManager.getQueue(topic));
+
             Thread senderThread = new Thread(sender);
             senderThread.setName("PublishSender topic: " + topic);
             senderThread.start();

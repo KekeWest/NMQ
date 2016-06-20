@@ -58,9 +58,9 @@ public class QueueManager {
         return msg.getBytes();
     }
 
-    public Message take(String topic) throws InterruptedException {
-        return queueMap.get(topic).take();
-    }
+//    public Message take(String topic) throws InterruptedException {
+//        return queueMap.get(topic).take();
+//    }
 
     public void clear(String topic) {
         queueMap.get(topic).clear();
@@ -74,6 +74,10 @@ public class QueueManager {
 
     public Set<String> getTopics() {
         return new HashSet<String>(queueMap.keySet());
+    }
+
+    public BlockingQueue<Message> getQueue(String topic) {
+        return queueMap.get(topic);
     }
 
 }

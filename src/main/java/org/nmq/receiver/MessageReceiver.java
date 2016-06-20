@@ -1,17 +1,15 @@
 package org.nmq.receiver;
 
+import java.util.concurrent.BlockingQueue;
+
 import org.nmq.Message;
-import org.nmq.QueueManager;
 
 import lombok.Setter;
 
 public abstract class MessageReceiver implements Runnable {
 
     @Setter
-    private String topic;
-
-    @Setter
-    private QueueManager queueManager;
+    protected BlockingQueue<Message> queue;
 
     public MessageReceiver() {
 
@@ -21,7 +19,7 @@ public abstract class MessageReceiver implements Runnable {
     public void run() {
         while(true) {
             try {
-                Message msg = queueManager.take(topic);
+                Message msg = queue.take();
                 if (msg.getBytes() == null) {
                     return;
                 }

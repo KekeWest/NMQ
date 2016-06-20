@@ -1,26 +1,25 @@
 package org.nmq.sender;
 
-import org.nmq.ClientChannelManager;
+import java.util.concurrent.BlockingQueue;
+
 import org.nmq.Message;
-import org.nmq.QueueManager;
+import org.nmq.TopicHandlerGroup;
 
 public abstract class MessageSender implements Runnable {
 
-    protected final String topic;
-    protected final ClientChannelManager channelManager;
-    protected final QueueManager queueManager;
+    protected final TopicHandlerGroup handlerGroup;
+    protected final BlockingQueue<Message> queue;
 
-    public MessageSender(String topic, ClientChannelManager channelManager, QueueManager queueManager) {
-        this.topic = topic;
-        this.channelManager = channelManager;
-        this.queueManager = queueManager;
+    public MessageSender(TopicHandlerGroup handlerGroup, BlockingQueue<Message> queue) {
+        this.handlerGroup = handlerGroup;
+        this.queue = queue;
     }
 
     @Override
     public void run() {
         while (true) {
             try {
-                Message msg = queueManager.take(topic);
+                Message msg = queue.take();
                 if (msg.getBytes() == null) {
                     return;
                 }

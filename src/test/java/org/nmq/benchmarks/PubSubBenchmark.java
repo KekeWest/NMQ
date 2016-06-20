@@ -1,13 +1,12 @@
 package org.nmq.benchmarks;
 
-import static java.lang.System.*;
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 import org.nmq.Channel;
 import org.nmq.enums.ChannelType;
+import org.nmq.receiver.MessageReceiver;
 
 public class PubSubBenchmark {
 
@@ -28,12 +27,15 @@ public class PubSubBenchmark {
             .build();
         server.start();
 
+        BenchmarkReceiver benchmarkReceiver = new BenchmarkReceiver(server);
+
         Channel client = Channel.builder()
             .channelType(ChannelType.SUB)
             .topics(topics)
             .address(address)
             .port(port)
             .build();
+        client.setReceiver("test_topic", benchmarkReceiver);
         client.start();
 
         Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -41,33 +43,45 @@ public class PubSubBenchmark {
                 try {
                     client.shutdown(true);
                     server.shutdown(true);
-                    out.println("Channel has been shut down.");
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
             }
         });
 
-        out.print("connecting... ");
         while (true) {
             if (server.getConnectionCount("test_topic") == 1)
                 break;
         }
-        out.println("ok");
-        out.println("start Benchmark");
 
-        PerformanceMeter meter = new PerformanceMeter("msg");
-        meter.start();
-        while (true) {
+        benchmarkReceiver.startMeter();
+        for (int i = 0; i < 128; i++) {
             server.send("test_topic", sendData);
-            while (true) {
-                byte[] recvBytes = client.receive("test_topic");
-                if (recvBytes != null) {
-                    meter.inc();
-                    break;
-                }
-            }
         }
+
+        Thread.sleep(Long.MAX_VALUE);
+    }
+
+    private static class BenchmarkReceiver extends MessageReceiver {
+
+        private final Channel server;
+        private final PerformanceMeter meter;
+
+        public BenchmarkReceiver(Channel server) {
+            this.server = server;
+            meter = new PerformanceMeter("msg");
+        }
+
+        public void startMeter() {
+            meter.start();
+        }
+
+        @Override
+        public void receivedMessage(byte[] bytes) {
+            meter.inc();
+            server.send("test_topic", bytes);
+        }
+
     }
 
 }
